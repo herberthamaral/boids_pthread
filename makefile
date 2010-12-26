@@ -2,7 +2,7 @@ all: main
 
 main: boids.o
 
-	gcc boids.o -o boids  -lglut -lGL -lGLU -L/usr/X11R6/lib -lX11 -lm
+	gcc boids.o -o boids  -lglut -lGL -lGLU -L/usr/X11R6/lib -lX11 -lm -pthread
 	rm *.o -f
 	rm *~ -f
 

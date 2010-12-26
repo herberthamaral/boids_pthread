@@ -18,6 +18,7 @@
 #include <list>
 #include <GL/glut.h>
 #include "vector.h"
+#include <pthread.h>
 using namespace std;
 
 void Display(void); // Funcao de desenho
@@ -68,6 +69,8 @@ typedef list<Boid>::iterator It;
 list<Boid> BOIDS;      
 
 Boid* boid, *goal, *boid1, *boid2;
+
+void *MoveOne(void *b);
 
 int time1=0;
 int time2=0;
@@ -600,32 +603,42 @@ vector Alinhamento(Boid* bj) // Cada boid tende a voar na mesma direcao e veloci
 
 void MoveAll()
 {
-    vector v1,v2,v3,v4,vnew;
     It itb = BOIDS.begin();
+    pthread_t thread[100];
+    int i = 0;
     while (itb!=BOIDS.end())
     {
         boid=&(*itb);
-        v1=Mult( Coesao(boid), 0.0005);
-        v2=Mult( Separacao(boid), 0.01);
-        v3=Mult( Alinhamento(boid) , 0.01);
-        v4=Mult( Obstaculo(boid), 0.01);
-        if (Norm(v4)>0) v1=Mult(v1,0);
-
-        vector tmp=NullVector();
-
-        tmp=Add(boid->speed,v1);
-        tmp=Add(tmp,v2);
-        tmp=Add(tmp,v3);
-        tmp=Add(tmp,v4);
-
-        float norm=sqrt(tmp.x*tmp.x + tmp.y*tmp.y + tmp.z*tmp.z);
-        if (norm>1)   tmp = Mult(tmp,1/norm);
-        if (norm<0.1) tmp = Mult(tmp,0.2/(norm+0.01));
-
-        boid->speed=tmp;
-        boid->pos = Add(boid->pos,boid->speed);
+        pthread_create(&thread[i],NULL,MoveOne,(void *)boid);
         itb++;
+        i++;
     }
+}
+
+void *MoveOne (void *b)
+{
+    Boid*  boid =(Boid *)b;
+    vector v1,v2,v3,v4,vnew;
+    v1=Mult( Coesao(boid), 0.0005);
+    v2=Mult( Separacao(boid), 0.01);
+    v3=Mult( Alinhamento(boid) , 0.01);
+    v4=Mult( Obstaculo(boid), 0.01);
+    if (Norm(v4)>0) v1=Mult(v1,0);
+
+    vector tmp=NullVector();
+
+    tmp=Add(boid->speed,v1);
+    tmp=Add(tmp,v2);
+    tmp=Add(tmp,v3);
+    tmp=Add(tmp,v4);
+
+    float norm=sqrt(tmp.x*tmp.x + tmp.y*tmp.y + tmp.z*tmp.z);
+    if (norm>1)   tmp = Mult(tmp,1/norm);
+    if (norm<0.1) tmp = Mult(tmp,0.2/(norm+0.01));
+
+    boid->speed=tmp;
+    boid->pos = Add(boid->pos,boid->speed);
+    pthread_exit(NULL);
 }
 
 int main(int argc,char **argv)
