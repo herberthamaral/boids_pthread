@@ -64,7 +64,9 @@ vector mean;
 float atx,aty,atz;
 float atx2,aty2,atz2;
 
-typedef struct {int id; vector pos; vector speed; int status;} Boid;
+pthread_mutex_t MUTEX;
+
+typedef struct {int id; vector pos; vector speed; int status;pthread_t thread;  } Boid;
 typedef list<Boid>::iterator It;
 list<Boid> BOIDS;      
 
@@ -322,9 +324,11 @@ void MakeGeometry(void)
         turn = turn1;
         if (turn2<0) turn=-turn1;
         turn = turn-90;       
-        glDisable(GL_LIGHTING);       if (boid->id < size) DrawBird(boid->pos.x,boid->pos.y,boid->pos.z,turn,boid->id,boid->status);
+        glDisable(GL_LIGHTING);
+        if (boid->id < size) DrawBird(boid->pos.x,boid->pos.y,boid->pos.z,turn,boid->id,boid->status);
         if (boid->id < size) DrawShadow(boid->pos.x,boid->pos.y,boid->pos.z,turn,boid->id,boid->status);
-        glEnable(GL_LIGHTING);       itb++;
+        glEnable(GL_LIGHTING);
+        itb++;
     }
     glPopMatrix();
 }
@@ -394,6 +398,7 @@ void HandleKeyboard(unsigned char key,int x, int y)
         boid->pos.x   = goal->pos.x+rand()%10;
         boid->pos.y   = goal->pos.y+rand()%10;
         boid->pos.z   = goal->pos.z+rand()%10;
+        boid->thread  = NULL;
         BOIDS.push_back(*boid);
         size++;      
     }
@@ -493,6 +498,8 @@ void HandleIdle(void)
 
         time2=clock();
         It itb = BOIDS.begin();
+        
+        //bater as asas
         while (itb!=BOIDS.end())
         {
             boid=&(*itb);
@@ -511,8 +518,10 @@ void HandleIdle(void)
 vector Obstaculo(Boid* bj)
 {
     vector v=NullVector();
-    vector c=NullVector(); float cz;
+    vector c=NullVector(); 
+    float cz;
     int i;
+    
     for (i=0; i<nc; i++) {
         c.x=bj->pos.x-cone[i][2];
         c.y=bj->pos.y-cone[i][3];
@@ -580,7 +589,8 @@ vector Separacao(Boid* bj) // Cada boid mantem uma distancia minima dos vizinhos
         boid2=&(*itb);
         float d=1+Norm(Diff(bj->pos, boid2->pos));
         if (boid2->id != bj->id && d < 20)
-            c = Add(c,    Mult(Diff(bj->pos, boid2->pos),1/(2*d*d))       );
+            c = Add(c,Mult(Diff(bj->pos, boid2->pos),1/(2*d*d)));
+
         itb++;
     }
     return c;
@@ -609,7 +619,8 @@ void MoveAll()
     while (itb!=BOIDS.end())
     {
         boid=&(*itb);
-        pthread_create(&thread[i],NULL,MoveOne,(void *)boid);
+        //pthread_create(&thread[i],NULL,MoveOne,(void *)boid);
+        MoveOne((void *)boid);
         itb++;
         i++;
     }
@@ -635,10 +646,8 @@ void *MoveOne (void *b)
     float norm=sqrt(tmp.x*tmp.x + tmp.y*tmp.y + tmp.z*tmp.z);
     if (norm>1)   tmp = Mult(tmp,1/norm);
     if (norm<0.1) tmp = Mult(tmp,0.2/(norm+0.01));
-
     boid->speed=tmp;
     boid->pos = Add(boid->pos,boid->speed);
-    pthread_exit(NULL);
 }
 
 int main(int argc,char **argv)
