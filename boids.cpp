@@ -390,6 +390,7 @@ void HandleKeyboard(unsigned char key,int x, int y)
     if (key=='Z') zaxis--;
     if (key=='n' || key=='+')
     {
+        //colocar inicialização da thread aqui.
         if (BOIDS.size()>size) {size++; return;}
         boid = new Boid;
         boid->id=size;
@@ -614,15 +615,32 @@ vector Alinhamento(Boid* bj) // Cada boid tende a voar na mesma direcao e veloci
 void MoveAll()
 {
     It itb = BOIDS.begin();
-    pthread_t thread[100];
+    pthread_t thread[1000];
+    pthread_attr_t attr;
+    
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_JOINABLE);
+
     int i = 0;
     while (itb!=BOIDS.end())
     {
         boid=&(*itb);
-        //pthread_create(&thread[i],NULL,MoveOne,(void *)boid);
-        MoveOne((void *)boid);
+        
+        pthread_create(&thread[i],&attr,MoveOne,(void *)boid); 
         itb++;
         i++;
+    }
+
+    itb = BOIDS.begin();
+    i = 0;
+    //pthread_attr_destroy(&attr);
+    while(itb!=BOIDS.end())
+    {
+       //printf("Tentando joinar a thread %d... ",i);
+       pthread_join(thread[i],NULL);
+       //printf("Thread %d joinada com sucesso!\n",i);
+       i++;
+       itb++;
     }
 }
 
