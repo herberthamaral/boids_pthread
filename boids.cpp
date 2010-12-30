@@ -51,6 +51,8 @@ int  path= 0;
 int cam=2;
 float specialtorus=0;
 
+unsigned short int THREADS_READY = 0; //flag que indica que as threads estão prontas para serem executadas
+
 float torus[4][8]={{10,20,0,80,30,0,1,1},{30,35,-150,0,65,0,0,1},{10,30,150,0,55,1,0,0.5},{10,30,-50,100,40,0.5,0.3,1}}; // raio menor, raio maior, x, y, z
 float ball [4][7]={{25,200,130,25,1,0,1},{30,-160,160,30,0.4,0.6,0.4},{10,-250,-60,10,0.1,0.5,0},{5,12,-12,5,0,1,1}};  // raio, x, y, z;
 float cone [4][8]={{20,100,0,0,0,1,1,0},{15,100,-160,-110,0,1,0,0},{25,100,-250,-20,0,0.3,1,0.5},{5,20,0,0,0,1,1,0.5}};   // raio, altura, x, y, z
@@ -64,9 +66,12 @@ vector mean;
 float atx,aty,atz;
 float atx2,aty2,atz2;
 
-pthread_mutex_t MUTEX;
-
+const int NUM_THREADS = 4;
 typedef struct {int id; vector pos; vector speed; int status;pthread_t thread;  } Boid;
+typedef struct {int begin; int end;} Interval; //struct utilizada para especificar
+                                               //o intervalo de BOIDS que uma thread 
+                                               //manipulará
+
 typedef list<Boid>::iterator It;
 list<Boid> BOIDS;      
 
@@ -76,7 +81,7 @@ void *MoveOne(void *b);
 
 int time1=0;
 int time2=0;
-int size=40;
+int size=60;
 float vs1[3]={0,0,0};
 float vs2[3]={0,0,0};
 float vs3[3]={0,0,0};
@@ -615,57 +620,70 @@ vector Alinhamento(Boid* bj) // Cada boid tende a voar na mesma direcao e veloci
 void MoveAll()
 {
     It itb = BOIDS.begin();
-    pthread_t thread[1000];
+    pthread_t thread[NUM_THREADS];
     pthread_attr_t attr;
     
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_JOINABLE);
 
-    int i = 0;
-    while (itb!=BOIDS.end())
+    int i;
+    for (i = 0; i < NUM_THREADS-1; i++)
     {
-        boid=&(*itb);
-        
-        pthread_create(&thread[i],&attr,MoveOne,(void *)boid); 
-        itb++;
-        i++;
+        Interval interval;
+        if (i == 0)
+        {
+            interval.begin = 0;
+            interval.end = BOIDS.size()/NUM_THREADS;
+        }
+        else
+        {
+            interval.begin = i*BOIDS.size()/NUM_THREADS+1;
+            interval.end = interval.begin + BOIDS.size()/NUM_THREADS;
+        }
+
+        pthread_create(&thread[i],&attr,MoveOne,(void *)&interval);
     }
 
-    itb = BOIDS.begin();
-    i = 0;
-    //pthread_attr_destroy(&attr);
-    while(itb!=BOIDS.end())
+    for (i = 0; i<NUM_THREADS-1;i++) 
     {
-       //printf("Tentando joinar a thread %d... ",i);
-       pthread_join(thread[i],NULL);
-       //printf("Thread %d joinada com sucesso!\n",i);
-       i++;
-       itb++;
+        pthread_join(thread[i],NULL);
     }
 }
 
 void *MoveOne (void *b)
 {
-    Boid*  boid =(Boid *)b;
+    Interval * interval = (Interval *)b;
+    It itb = BOIDS.begin(); 
     vector v1,v2,v3,v4,vnew;
-    v1=Mult( Coesao(boid), 0.0005);
-    v2=Mult( Separacao(boid), 0.01);
-    v3=Mult( Alinhamento(boid) , 0.01);
-    v4=Mult( Obstaculo(boid), 0.01);
-    if (Norm(v4)>0) v1=Mult(v1,0);
+    
+    int i;
 
-    vector tmp=NullVector();
+    for (i = interval->begin;i<interval->end;i++) 
+    {
+        boid=&(*itb);
+        v1=Mult( Coesao(boid), 0.0005);
+        v2=Mult( Separacao(boid), 0.01);
+        v3=Mult( Alinhamento(boid) , 0.01);
+        v4=Mult( Obstaculo(boid), 0.01);
+        if (Norm(v4)>0) v1=Mult(v1,0);
 
-    tmp=Add(boid->speed,v1);
-    tmp=Add(tmp,v2);
-    tmp=Add(tmp,v3);
-    tmp=Add(tmp,v4);
+        vector tmp=NullVector();
 
-    float norm=sqrt(tmp.x*tmp.x + tmp.y*tmp.y + tmp.z*tmp.z);
-    if (norm>1)   tmp = Mult(tmp,1/norm);
-    if (norm<0.1) tmp = Mult(tmp,0.2/(norm+0.01));
-    boid->speed=tmp;
-    boid->pos = Add(boid->pos,boid->speed);
+        tmp=Add(boid->speed,v1);
+        tmp=Add(tmp,v2);
+        tmp=Add(tmp,v3);
+        tmp=Add(tmp,v4);
+
+        float norm=sqrt(tmp.x*tmp.x + tmp.y*tmp.y + tmp.z*tmp.z);
+        if (norm>1)   tmp = Mult(tmp,1/norm);
+        if (norm<0.1) tmp = Mult(tmp,0.2/(norm+0.01));
+        boid->speed=tmp;
+        boid->pos = Add(boid->pos,boid->speed);
+
+        itb++;
+    }
+
+
 }
 
 int main(int argc,char **argv)
